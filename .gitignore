@@ -1,3 +1,4 @@
 *.o
+# output target
 test
 # libligntnvm.so is not ignore...
