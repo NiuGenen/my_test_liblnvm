@@ -1,15 +1,18 @@
 #include <liblightnvm.h>
+#include <nvm.h>
 #include <stdio.h>
 
 static char nvm_dev_path[NVM_DEV_PATH_LEN] = "/dev/nvme0n1";
 static struct nvm_dev *dev;
 static const struct nvm_geo *geo;
-static struct nvm_addr a0;
 
-static int channel = 0;
-static int lun = 0;
-static int plane = 0;
-static int block = 10;
+static int ch_bgn = 0, 
+    ch_end = 0, 
+    lun_bgn = 0, 
+    lun_end = 1,
+    block = 10;
+
+
 static const char * StrPmode[] = {
             "single",
             "dual",
@@ -26,12 +29,6 @@ int setup(void)
 	}
 	geo = nvm_dev_get_geo(dev);
 
-	a0.ppa = 0;
-	a0.g.ch = channel;
-	a0.g.lun = lun;
-	a0.g.pl = plane;
-	a0.g.blk = block;	//only blk addr
-
 	return 0;
 }
 
@@ -41,7 +38,7 @@ int teardown(void)
 	return 0;
 }
 
-const char* StrPmode(int pmode)
+const char* GetStrPmode(int pmode)
 {
     int i;
     int mode[] = {
@@ -56,10 +53,37 @@ const char* StrPmode(int pmode)
     return StrPmode[i];
 }
 
+
+static inline int _cmd_nblks(int nblks, int cmd_nblks_max)
+{
+	int cmd_nblks = cmd_nblks_max;
+
+	while(nblks % cmd_nblks && cmd_nblks > 1) --cmd_nblks;
+
+	return cmd_nblks;
+}
+
+
+void test_cmd_nblks(void)
+{
+    printf("%d\n", _cmd_nblks(60, 64 / 2));
+}
+
+
 void PrPmode(void)
 {
-    printf("Pmode %s\n", StrPmode(dev->pmode));
+    printf("Pmode %s\n", GetStrPmode(dev->pmode));
 }
+
+void test_vblk_alloc_line_attr(void)
+{
+    struct nvm_vblk *vblk;
+    vblk = nvm_vblk_alloc_line(dev, ch_bgn, ch_end, lun_bgn, lun_end, block);
+    printf("vblk->nblks: %d\n", vblk->nblks);
+    printf("vblk->nbytes: %zu\n", vblk->nbytes);
+    printf("a block bytes: %zu\n", geo->npages * geo->nsectors * geo->sector_nbytes);
+}
+
 
 
 
@@ -67,10 +91,14 @@ typedef void (* FuncType) (void);
 void RunTests()
 {
 	FuncType tests[] = { 
-            PrPmode
+//           PrPmode,
+//           test_vblk_alloc_line_attr,
+             test_cmd_nblks,
 		};
 	const char *teststr[] = {
-            "PrPmode"
+//          "PrPmode",
+//          "test_vblk_alloc_line_attr",
+            "test_cmd_nblks"
         };
 	for(int i = 0; i < (sizeof(tests) / sizeof(FuncType)); i++){
 		printf("====Test %d : %s====\n", i, teststr[i]);

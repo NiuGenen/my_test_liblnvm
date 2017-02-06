@@ -1,10 +1,8 @@
 TARGET:=test
-OBJ_USE_CU := test_dev_ywj.o	\
-	test_addr_conv_ywj.o	\
-	test_addr_io_ywj.o
-OBJ_NO_CU := test_geo_ywj.o	\
-	test_addr_ywj.o	\
-	test_io_issue_ywj.o
+SRC_USE_CU := $(shell ls test_*.c)
+OBJ_USE_CU := $(patsubst .c,.o,$(SRC_USE_CU))
+OBJ_NO_CU := addr_issue.o  geo_issue.o  \
+	io_issue.o  vblk_issue.o
 TEST_USE_CU:=$(basename $(OBJ_USE_CU))
 TEST_NO_CU:=$(basename $(OBJ_NO_CU))
 
