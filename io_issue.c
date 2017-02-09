@@ -21,15 +21,7 @@ static char Meta2[METALEN] = "I am Meta2";
 static void *Buf_for_1_read = NULL; //Buf for reading 1 sector
 static void *Buf_for_1_meta_read = NULL; // Buf for reading 1 metadata
 
-#define FAIL_ERASE do{ printf("Erase Failed\n"); }while(0)
-#define FAIL_ALLOC do{ printf("Alloc Failed\n"); }while(0)
-#define FAIL_WRITE do{ printf("Write Failed\n"); }while(0)
-#define FAIL_READ  do{ printf("Read Failed\n"); }while(0)
-#define ADDR_INVALID do{ printf("Addr Invalid\n"); }while(0)
-#define THE_SAME_IO   do{ printf("IO Same\n"); }while(0)
-#define NOT_THE_SAME_IO do{ printf("IO Not Same\n"); }while(0)
-#define THE_SAME_META   do{ printf("META Same\n"); }while(0)
-#define NOT_THE_SAME_META do{ printf("META Not Same\n"); }while(0)
+#include "common.h"
 
 int setup(void)
 {
@@ -89,28 +81,6 @@ uint64_t Get_addr_for_test()
 	return addr.ppa;
 }
 
-void My_pr_addr_cap(const char* str)
-{
-#define digestlen 8
-	char digest[digestlen];
-	strncpy(digest, str, digestlen);
-	digest[digestlen - 1] = '\0';
-
-	printf("%8s | %s | %s | %s | %-4s | %3s | %s \n",
-		digest,"ch", "lun", "pl", "blk", "pg", "sec");
-}
-void My_pr_nvm_addr(struct nvm_addr addr)
-{
-	printf("         | %2d | %3d | %2d | %4d | %3d | %d\n",
-	       addr.g.ch, addr.g.lun, addr.g.pl,
-	       addr.g.blk, addr.g.pg, addr.g.sec);
-}
-
-void My_pr_addr_with_str(const char *str, struct nvm_addr x)
-{
-	My_pr_addr_cap(str);
-	My_pr_nvm_addr(x);
-}
 
 void EraseNpl_1Blk(struct nvm_addr wh)//
 {

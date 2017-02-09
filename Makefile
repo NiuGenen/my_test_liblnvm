@@ -1,15 +1,15 @@
 TARGET:=test
 SRC_USE_CU := $(shell ls test_*.c)
-OBJ_USE_CU := $(patsubst .c,.o,$(SRC_USE_CU))
-OBJ_NO_CU := addr_issue.o  geo_issue.o  \
-	io_issue.o  vblk_issue.o
+SRC_NO_CU := $(shell ls *_issue.c)
+OBJ_USE_CU := $(patsubst %.c,%.o,$(SRC_USE_CU))
+OBJ_NO_CU := $(patsubst %.c,%.o,$(SRC_NO_CU))
 TEST_USE_CU:=$(basename $(OBJ_USE_CU))
 TEST_NO_CU:=$(basename $(OBJ_NO_CU))
 
 CC:=gcc
-CFLAGS:=-I./libs/include -std=c99
-LDFLAGSCU:=-L./libs -llightnvm -lcunit
-LDFLAGS_:=-L./libs -llightnvm
+CFLAGS:=-I./include -I. -std=c99
+LDFLAGSCU:= -llightnvm -lcunit
+LDFLAGS_:= -llightnvm
 
 %.o:%.c
 	$(CC) $(CFLAGS) -c $<
