@@ -1,5 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
+#include <liblightnvm.h>
+#include <nvm.h>
 
 #define DEBUG_MSG(MSG) do{ printf("[DEBUG] - "#MSG"\n"); }while(0)
 
@@ -15,9 +17,10 @@
 #define NOT_THE_SAME_META DEBUG_MSG(NOT_THE_SAME_META)
 
 //for bbt_issue:
-#define GET_BBT_FAIL DEBUG_MSG(GET_BBT_FAIL)
 #define PLANE_EINVAL DEBUG_MSG(PLANE_EINVAL)
-
+#define GET_BBT_FAIL DEBUG_MSG(GET_BBT_FAIL)
+#define FLUSH_BBT_FAIL DEBUG_MSG(FLUSH_BBT_FAIL)
+#define MARK_BBT_FAIL DEBUG_MSG(MARK_BBT_FAIL)
 //for common use:
 #define NVM_MIN(x, y) ({                \
         __typeof__(x) _min1 = (x);      \
@@ -47,6 +50,52 @@ inline static void My_pr_addr_with_str(const char *str, struct nvm_addr x)
 {
 	My_pr_addr_cap(str);
 	My_pr_nvm_addr(x);
+}
+inline static void My_pr_naddrs_with_str(const char *str, struct nvm_addr x[], int naddrs)
+{
+	My_pr_addr_cap(str);
+    for (int i = 0; i < naddrs; i++) {
+        My_pr_nvm_addr(x[i]);
+    }
+}
+
+inline static void My_nvm_bbt_pr(const struct nvm_bbt *bbt)
+{
+	int nnotfree = 0;
+    const int Pr_num = 4;
+    int pred = 0, pr_sr = 0;
+	if (!bbt) {
+		printf("bbt { NULL }\n");
+		return;
+	}
+
+	printf("bbt {\n");
+	printf("  addr"); nvm_addr_pr(bbt->addr);
+	printf("  nblks(%lu) {", bbt->nblks);
+	for (int i = 0; i < bbt->nblks; i += bbt->dev->geo.nplanes) {
+		int blk = i / bbt->dev->geo.nplanes;
+        if (pred < Pr_num/*first Pr_num ones*/ 
+            || i == bbt->nblks - bbt->dev->geo.nplanes/*last one*/) {
+            printf("\n    blk(%04d): [ ", blk);
+            for (int blk = i; blk < (i + bbt->dev->geo.nplanes); ++blk) {
+                nvm_bbt_state_pr(bbt->blks[blk]);
+                printf(" ");
+                if (bbt->blks[blk]) {
+                    ++nnotfree;
+                }
+            }
+            printf("]");
+            pred++;
+        }else if(!pr_sr){
+            printf("\n....");
+            pr_sr = 1;
+        }
+
+
+	}
+	printf("\n  }\n");
+	printf("  #notfree(%d)\n", nnotfree);
+	printf("}\n");
 }
 
 
