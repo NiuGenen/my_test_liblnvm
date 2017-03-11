@@ -49,11 +49,6 @@ int DBGCounts = 0;
 }
 
 BGThreads::~BGThreads() { //need to wait for the threads.
-//    MutexLock l(&mutex_);
-//    while (elems_ > 0) {
-//    StartAll();
-//
-//    }
     while (elems_ > 0) {
         printf(DBG "Destory BG: %d elems left.\n", elems_);
         cv_.SignalAll();
@@ -88,13 +83,13 @@ void BGThreads::AddSchedule(function_t func, void *arg) {
         w = new wraparg(i, func, arg, this);
         slots_[i].state_ = Pending;
         slots_[i].args_ = w;
+        slots_[i].num_ = elems_;
     }
 
     PthreadCall("start thread", pthread_create(&slots_[i].thread_, NULL,  &BGThreads::Wrapper, (void *)w));
 }
 void BGThreads::StartAll() {
     MutexLock l(&mutex_);
-    printf(DBG "BGThreads: Ready to run %d threads.\n", elems_);
     cv_.SignalAll();
 }
 void BGThreads::Resize(int size) {
@@ -112,6 +107,7 @@ void BGThreads::Resize(int size) {
             if (old_[i].state_ == Pending) {
                 new_[new_elems_].thread_ = old_[i].thread_;
                 new_[new_elems_].args_ = old_[i].args_;
+                new_[new_elems_].num_ = old_[i].num_;
                 new_[new_elems_].args_->islot = new_elems_;
                 new_elems_++;
             }
@@ -130,18 +126,23 @@ void BGThreads::Resize(int size) {
 void* BGThreads::Wrapper(void *arg) {
     wraparg *w = (wraparg *)arg;
     BGThreads *bg = w->BGptr;
+    int num = bg->slots_[w->islot].num_;
     bg->mutex_.Lock();
-    printf("1 thread create lock & wait.\n");
+    printf("thread %d is created lock & wait.\n", num);
     bg->cv_.Wait();
     bg->mutex_.Unlock();
 
-    printf("1 thread is signaled.\n");
-    bg->slots_[w->islot].ret_ = w->func(w->arg);
-    bg->slots_[w->islot].state_ = Finished;
-    bg->elems_--;
+    {
+        printf("thread %d is signaled.\n", num);
+        MutexLock l(&(bg->mu_)); 
+        bg->slots_[w->islot].ret_ = w->func(w->arg);
+        bg->slots_[w->islot].state_ = Finished;
+        bg->elems_--;
+    }
+
     bg->bg_cv_.Signal();
 
-    printf(DBG "Thread %d stops. Ret: %d.\n", DBGCounts++, bg->slots_[w->islot].ret_);
+    printf("thread %d stops. Ret: %d.\n", num, bg->slots_[w->islot].ret_);
 
     delete w;
 

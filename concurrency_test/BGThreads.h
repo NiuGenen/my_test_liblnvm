@@ -2,7 +2,7 @@
 #define BGTHREAD_H
 
 #include <pthread.h>
-#define Barrier() __asm__ __volatile__("" ::: "memory")
+#define MyBarrier() __asm__ __volatile__("" ::: "memory")
 
 class CondVar;
 
@@ -86,8 +86,8 @@ private:
     struct ThreadItem{
         ThreadType thread_;
         int ret_;
+        int num_;
         ThreadState state_;
-        Mutex mu_;
         wraparg *args_; //is not deleted by destructor. 
         ThreadItem() 
         : state_(Empty){ }
