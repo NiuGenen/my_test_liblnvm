@@ -48,25 +48,39 @@ int DBGCounts = 0;
 #define DBG "[DBG] - "
 }
 
-BGThreads::~BGThreads() { //need to wait for the threads.
-    while (elems_ > 0) {
-        printf(DBG "Destory BG: %d elems left.\n", elems_);
-        cv_.SignalAll();
-        sleep(1);
-    }
+BGThreads::BGThreads() :
+    size_(0), elems_(0), slots_(0),
+    ctrl_cv_(&ctrl_lock), cv_(&mutex_), shouldstop_(false) {
+    Resize(4);
+    CtrlArg *c = new CtrlArg(this);
+    PthreadCall("start ctrl thread", pthread_create(&ctrl_, NULL,  &BGThreads::CtrlWork, (void *)c));
+}
 
-    //clean
-    for (int i = 0; i < elems_; i++) {
-        PthreadCall("join", pthread_join(slots_[i].thread_, NULL));
+
+BGThreads::~BGThreads() { //need to wait for the threads.
+//    while (elems_ > 0) {
+//        printf(DBG "Destory BG: %d elems left.\n", elems_);
+//        cv_.SignalAll();
+//        sleep(1);
+//    }
+    printf(DBG "Destory BG: %d elems left.\n", elems_);
+    {
+        MutexLock l(&mu_);
+        shouldstop_ = true;
     }
+    ctrl_cv_.Signal();
+    PthreadCall("wait for ctrl thread", pthread_join(ctrl_, NULL));
     delete[] slots_;
 }
 
 
-void BGThreads::AddSchedule(function_t func, void *arg) {
+int BGThreads::AddSchedule(function_t func, void *arg) {
     int i;
     wraparg *w;
-
+    if (shouldstop_) {
+        return -1;
+    }
+    printf(DBG "Add is called: elems_: %d size: %d\n", elems_, size_);
     if (elems_ > (size_ >> 1)) {
         Resize(size_ << 1);
     }
@@ -85,11 +99,12 @@ void BGThreads::AddSchedule(function_t func, void *arg) {
         slots_[i].args_ = w;
         slots_[i].num_ = elems_;
     }
-
     PthreadCall("start thread", pthread_create(&slots_[i].thread_, NULL,  &BGThreads::Wrapper, (void *)w));
+    return slots_[i].num_;
 }
 void BGThreads::StartAll() {
     MutexLock l(&mutex_);
+    printf(DBG "StartAll.\n");
     cv_.SignalAll();
 }
 void BGThreads::Resize(int size) {
@@ -127,24 +142,51 @@ void* BGThreads::Wrapper(void *arg) {
     wraparg *w = (wraparg *)arg;
     BGThreads *bg = w->BGptr;
     int num = bg->slots_[w->islot].num_;
+    int ret_tmp;
+    PthreadCall("detach self", pthread_detach(pthread_self()));
+    printf("thread %d is created.\n", num);
     bg->mutex_.Lock();
-    printf("thread %d is created lock & wait.\n", num);
+    printf("thread %d is locked & wait.\n", num);
     bg->cv_.Wait();
     bg->mutex_.Unlock();
 
+
+    printf("thread %d is signaled.\n", num);
+    ret_tmp = w->func(w->arg);
     {
-        printf("thread %d is signaled.\n", num);
-        MutexLock l(&(bg->mu_)); 
-        bg->slots_[w->islot].ret_ = w->func(w->arg);
+        MutexLock l(&(bg->mu_));
+        bg->slots_[w->islot].ret_ = ret_tmp;
         bg->slots_[w->islot].state_ = Finished;
         bg->elems_--;
     }
 
-    bg->bg_cv_.Signal();
 
     printf("thread %d stops. Ret: %d.\n", num, bg->slots_[w->islot].ret_);
 
     delete w;
 
+    return NULL;
+}
+
+void* BGThreads::CtrlWork(void *arg) {
+    CtrlArg *t = (CtrlArg *)arg;
+    BGThreads *bg = t->BGptr;
+    printf(DBG "ctrl thread is create!\n");
+    while (1) {
+        while (bg->elems_ <= 0) {
+            if (bg->shouldstop_) {
+                goto OUT;
+            }
+            printf(DBG "ctrl thread is sleeping.\n");
+            bg->ctrl_cv_.Wait();
+        }
+        bg->mutex_.Lock();
+        bg->cv_.SignalAll();
+        bg->mutex_.Unlock();
+        sleep(1);
+        printf(DBG "ctrl thread ITR elems %d\n", bg->elems_);
+    }
+OUT:
+    delete t;
     return NULL;
 }
